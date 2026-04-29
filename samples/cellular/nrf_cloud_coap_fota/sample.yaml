@@ -51,3 +51,14 @@ tests:
     extra_args:
       - -DEXTRA_CONF_FILE=smp_fota.conf
       - -DDTC_OVERLAY_FILE=nrf9160dk_mcumgr_client_uart2.overlay
+  sample.cellular.nrf_cloud_coap_fota.nrf7002dk_wifi:
+    sysbuild: true
+    build_only: true
+    integration_platforms:
+      - nrf7002dk/nrf5340/cpuapp/ns
+    platform_allow:
+      - nrf7002dk/nrf5340/cpuapp/ns
+    tags:
+      - ci_build
+      - sysbuild
+      - ci_samples_cellular

@@ -5,9 +5,13 @@
  */
 
 #include <zephyr/kernel.h>
+#ifdef CONFIG_NRF_MODEM_LIB
 #include <modem/nrf_modem_lib.h>
 #include <nrf_modem_at.h>
+#endif
+#ifdef CONFIG_MODEM_INFO
 #include <modem/modem_info.h>
+#endif
 #include <zephyr/settings/settings.h>
 #include <zephyr/net/conn_mgr_connectivity.h>
 #include <helpers/nrfx_reset_reason.h>
@@ -56,6 +60,7 @@ static K_EVENT_DEFINE(connection_events);
 /* nRF Cloud device ID */
 static char device_id[NRF_CLOUD_CLIENT_ID_MAX_LEN + 1];
 
+#ifdef CONFIG_NRF_CLOUD_CHECK_CREDENTIALS
 static bool cred_check(struct nrf_cloud_credentials_status *const cs)
 {
 	int ret = 0;
@@ -96,6 +101,7 @@ static void await_credentials(void)
 
 	LOG_INF("nRF Cloud credentials detected!");
 }
+#endif /* CONFIG_NRF_CLOUD_CHECK_CREDENTIALS */
 
 static void button_handler(uint32_t button_states, uint32_t has_changed)
 {
@@ -295,6 +301,7 @@ static void report_startup(void)
 
 static void modem_time_wait(void)
 {
+#ifdef CONFIG_NRF_MODEM_LIB
 	int err = 0;
 	char time_buf[64];
 
@@ -308,7 +315,15 @@ static void modem_time_wait(void)
 			LOG_DBG("AT Clock Command Error %d... Retrying in 3 seconds.", err);
 		}
 	} while (err != 0);
+#else
+	int64_t ts = 0;
 
+	LOG_INF("Waiting for NTP time sync...");
+
+	while (date_time_now(&ts) != 0) {
+		k_sleep(K_SECONDS(1));
+	}
+#endif
 	LOG_INF("Network time obtained");
 }
 
@@ -410,14 +425,18 @@ static int setup(void)
 	}
 
 	/* Init modem */
+#ifdef CONFIG_NRF_MODEM_LIB
 	err = nrf_modem_lib_init();
 	if (err) {
 		LOG_ERR("Failed to initialize modem library: 0x%X", err);
 		return -EFAULT;
 	}
+#endif
 
 	/* Ensure device has credentials installed before proceeding */
+#ifdef CONFIG_NRF_CLOUD_CHECK_CREDENTIALS
 	await_credentials();
+#endif
 
 	/* Get the device ID */
 	err = nrf_cloud_client_id_get(device_id, sizeof(device_id));
@@ -480,8 +499,13 @@ static void l4_event_handler(struct net_mgmt_event_callback *cb, uint64_t event,
 	if (event == NET_EVENT_L4_CONNECTED) {
 		/* Mark network as up. */
 		dk_set_led(LTE_LED_NUM, 1);
-		LOG_INF("Connected to LTE");
+		LOG_INF("Connected to %s", IS_ENABLED(CONFIG_NRF_MODEM_LIB) ? "LTE" : "Wi-Fi");
 		k_event_post(&connection_events, NETWORK_UP);
+
+ #ifndef CONFIG_NRF_MODEM_LIB
+		/* WiFi means no LTE time update. Trigger a date_time update manually. */
+		date_time_update_async(NULL);
+ #endif
 	}
 
 	if (event == NET_EVENT_L4_DISCONNECTED) {
