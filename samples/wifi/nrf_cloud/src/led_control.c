@@ -12,12 +12,10 @@
 /* We implement, here, both 4-led and RGB LED control, but you may feel free to implement
  * whatever your board can support. You must make sure your board Device Tree Source or overlays
  * include a device marked as compatible with either the pwm-leds or gpio-leds driver in order to
- * use the LED driver provided by Zephyr, as we do here. Both the nRF9160dk, nRF9161dk and thingy91
- * have such devices defined in their default Device Tree Sources. See nrf9160dk_nrf9160_common.dts
- * nrf9161dk_nrf9161_common.dts and thingy91_nrf9160_common.dts.
+ * use the LED driver provided by Zephyr, as we do here.
  */
 
-LOG_MODULE_REGISTER(led_control, CONFIG_MULTI_SERVICE_LOG_LEVEL);
+LOG_MODULE_REGISTER(led_control, CONFIG_WIFI_NRF_CLOUD_LOG_LEVEL);
 
 /* Find a Device Tree node compatible with either the pwm_leds or gpio_leds driver, depending on
  * what has been configured.

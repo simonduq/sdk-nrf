@@ -7,14 +7,12 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/net/conn_mgr_connectivity.h>
 
-#include <modem/lte_lc.h>
-#include <modem/nrf_modem_lib.h>
 #include <net/nrf_provisioning.h>
 
 #include "cloud_connection.h"
 #include "sample_reboot.h"
 
-LOG_MODULE_REGISTER(cloud_provisioning, CONFIG_MULTI_SERVICE_LOG_LEVEL);
+LOG_MODULE_REGISTER(cloud_provisioning, CONFIG_WIFI_NRF_CLOUD_LOG_LEVEL);
 
 #define PROVISIONING_IDLE		BIT(2)
 
@@ -54,52 +52,6 @@ static void nrf_provisioning_callback(const struct nrf_provisioning_callback_dat
 		 * immediate retry.
 		 */
 		k_work_reschedule(&provisioning_idle_work, K_SECONDS(5));
-		break;
-	case NRF_PROVISIONING_EVENT_NEED_LTE_DEACTIVATED:
-		LOG_INF("Provisioning library requests offline mode");
-
-		/* The provisioning library wants to install or generate credentials.
-		 * Deactivate LTE and GNSS to allow this.
-		 */
-
-		/* Shut down LTE */
-		err = conn_mgr_all_if_disconnect(true);
-		if (err) {
-			LOG_ERR("Failed to disconnect from LTE network, error: %d", err);
-			sample_reboot_error();
-			return;
-		}
-
-		/* Shut down GNSS */
-		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_DEACTIVATE_GNSS);
-		if (err) {
-			LOG_ERR("Failed to deactivate GNSS, error: %d", err);
-			sample_reboot_error();
-			return;
-		}
-
-		break;
-	case NRF_PROVISIONING_EVENT_NEED_LTE_ACTIVATED:
-		LOG_INF("Provisioning library requests normal mode");
-
-		/* We are done installing credentials, reactivate GNSS and network */
-
-		/* Reactivate GNSS */
-		err = lte_lc_func_mode_set(LTE_LC_FUNC_MODE_ACTIVATE_GNSS);
-		if (err) {
-			LOG_ERR("Failed to activate GNSS, error: %d", err);
-			sample_reboot_error();
-			return;
-		}
-
-		/* Reactivate LTE */
-		err = conn_mgr_all_if_connect(true);
-		if (err) {
-			LOG_ERR("Failed to connect to LTE network, error: %d", err);
-			sample_reboot_error();
-			return;
-		}
-
 		break;
 	case NRF_PROVISIONING_EVENT_FAILED_TOO_MANY_COMMANDS:
 		LOG_ERR("Provisioning failed, too many commands for the device to handle");

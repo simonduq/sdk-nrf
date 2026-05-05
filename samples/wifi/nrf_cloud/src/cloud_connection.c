@@ -26,7 +26,7 @@
 #include "led_control.h"
 #include "shadow_config.h"
 
-LOG_MODULE_REGISTER(cloud_connection, CONFIG_MULTI_SERVICE_LOG_LEVEL);
+LOG_MODULE_REGISTER(cloud_connection, CONFIG_WIFI_NRF_CLOUD_LOG_LEVEL);
 
 /* Internal state */
 
@@ -327,20 +327,7 @@ static void l4_event_handler(struct net_mgmt_event_callback *cb,
 		/* Set the network ready flag */
 		k_event_post(&cloud_events, NETWORK_READY);
 
-		/* If LTE-event-driven date_time updates are disabled, manually trigger a date_time
-		 * timestamp refresh.
-		 *
-		 * Note: The CONFIG_DATE_TIME_AUTO_UPDATE setting controls specifically whether
-		 * LTE-event-driven date_time updates are enabled. The date_time library will still
-		 * periodically refresh its timestamp if CONFIG_DATE_TIME_AUTO_UPDATE is disabled,
-		 * but this refresh is infrequent, so we are manually requesting a refresh
-		 * whenever internet access becomes available so that we get a timestamp
-		 * immediately.
-		 */
-		if (!IS_ENABLED(CONFIG_DATE_TIME_AUTO_UPDATE)) {
-			date_time_update_async(NULL);
-		}
-
+		date_time_update_async(NULL);
 	} else if (event == NET_EVENT_L4_DISCONNECTED) {
 		LOG_INF("Network connectivity lost!");
 
@@ -550,8 +537,6 @@ static void cloud_event_handler(const struct nrf_cloud_evt *nrf_cloud_evt)
 
 		LOG_DBG("NRF_CLOUD_EVT_FOTA_DONE, FOTA type: %s",
 			fota_type == NRF_CLOUD_FOTA_APPLICATION	  ?		"Application"	:
-			fota_type == NRF_CLOUD_FOTA_MODEM_DELTA	  ?		"Modem (delta)"	:
-			fota_type == NRF_CLOUD_FOTA_MODEM_FULL	  ?		"Modem (full)"	:
 			fota_type == NRF_CLOUD_FOTA_BOOTLOADER	  ?		"Bootloader"	:
 										"Invalid");
 
@@ -580,14 +565,14 @@ static int setup_cloud(void)
 {
 	int err;
 
-	/* Register to be notified when the modem has figured out the current time. */
+	/* Register to be notified when the device has figured out the current time. */
 	date_time_register_handler(date_time_event_handler);
 
 #if defined(CONFIG_NRF_CLOUD_MQTT)
 	/* Initialize nrf_cloud library. */
 	struct nrf_cloud_init_param params = {
 		.event_handler = cloud_event_handler,
-		.fmfu_dev_inf = get_full_modem_fota_fdev(),
+		.fmfu_dev_inf = NULL,
 		.application_version = CONFIG_APP_VERSION
 	};
 
@@ -679,11 +664,7 @@ void cloud_connection_thread_fn(void)
 		if (IS_ENABLED(CONFIG_LED_VERBOSE_INDICATION)) {
 			long_led_pattern(LED_WAITING);
 		}
-		if (!IS_ENABLED(CONFIG_BOARD_NATIVE_SIM)) {
-			(void)await_network_ready(K_FOREVER);
-		} else {
-			conn_mgr_mon_resend_status();
-		}
+		(void)await_network_ready(K_FOREVER);
 
 		LOG_INF("Network is ready");
 

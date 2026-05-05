@@ -372,24 +372,6 @@ static void cloud_event_handler(const struct nrf_cloud_evt *nrf_cloud_evt)
 	}
 }
 
-static struct dfu_target_fmfu_fdev *get_full_modem_fota_fdev(void)
-{
-	if (IS_ENABLED(CONFIG_NRF_CLOUD_FOTA_FULL_MODEM_UPDATE)) {
-		static struct dfu_target_fmfu_fdev ext_flash_dev = {
-			.size = 0,
-			.offset = 0,
-			/* CONFIG_DFU_TARGET_FULL_MODEM_USE_EXT_PARTITION is enabled,
-			 * so no need to specify the flash device here
-			 */
-			.dev = NULL
-		};
-
-		return &ext_flash_dev;
-	}
-
-	return NULL;
-}
-
 /* Callback to track network connectivity */
 static void l4_event_handler(struct net_mgmt_event_callback *cb, uint64_t event,
 			     struct net_if *iface)
@@ -456,7 +438,7 @@ static int setup(void)
 	/* Initialize nrf_cloud library. */
 	struct nrf_cloud_init_param params = {
 		.event_handler = cloud_event_handler,
-		.fmfu_dev_inf = get_full_modem_fota_fdev(),
+		.fmfu_dev_inf = NULL,
 #ifdef CONFIG_NRF_CLOUD_FOTA_SMP
 		.smp_reset_cb = nrf52840_reset_api,
 #endif
