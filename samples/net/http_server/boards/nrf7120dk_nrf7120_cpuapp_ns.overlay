@@ -1,0 +1,20 @@
+/*
+ * Copyright (c) 2026 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+/*
+ * TLS on nRF7120 /ns enlarges the TF-M crypto IPC scratch
+ * (CONFIG_TFM_CRYPTO_IOVEC_BUFFER_SIZE) so full-size TLS records fit when the
+ * crypto partition copies in/out vectors (MM-IOVEC off). That scratch lives in
+ * the secure SRAM region, which at the default 64 KB is already ~95% full, so
+ * grow the secure region too. NS app still gets a roomy 640 KB.
+ */
+&sram0_s {
+	reg = <0x20000000 DT_SIZE_K(128)>;
+};
+
+&sram0_ns {
+	reg = <0x20020000 DT_SIZE_K(640)>;
+};

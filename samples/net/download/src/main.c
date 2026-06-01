@@ -39,6 +39,7 @@ static struct net_mgmt_event_callback conn_cb;
 static struct net_if *net_if;
 
 static K_SEM_DEFINE(network_connected_sem, 0, 1);
+static K_SEM_DEFINE(download_done_sem, 0, 1);
 
 #if CONFIG_SAMPLE_SECURE_SOCKET
 static int sec_tag_list[] = { SEC_TAG };
@@ -153,6 +154,7 @@ static void l4_event_handler(struct net_mgmt_event_callback *cb,
 {
 	switch (event) {
 	case NET_EVENT_L4_CONNECTED:
+		net_if = iface;
 		printk("IP Up\n");
 		on_net_event_l4_connected();
 		break;
@@ -270,9 +272,7 @@ static int callback(const struct downloader_evt *event)
 #endif /* CONFIG_SAMPLE_COMPARE_HASH */
 #endif /* CONFIG_SAMPLE_COMPUTE_HASH */
 
-		(void)conn_mgr_if_disconnect(net_if);
-		(void)conn_mgr_all_if_down(true);
-		printk("Bye\n");
+		k_sem_give(&download_done_sem);
 		return 0;
 
 	case DOWNLOADER_EVT_ERROR:
@@ -368,6 +368,12 @@ int main(void)
 	}
 
 	printk("Downloading %s\n", URL);
+
+	k_sem_take(&download_done_sem, K_FOREVER);
+
+	(void)conn_mgr_if_disconnect(net_if);
+	(void)conn_mgr_all_if_down(true);
+	printk("Bye\n");
 
 	return 0;
 }

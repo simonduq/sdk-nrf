@@ -150,7 +150,11 @@ manifest:
     - name: trusted-firmware-m
       repo-path: sdk-trusted-firmware-m
       path: modules/tee/tf-m/trusted-firmware-m
-      revision: pull/256/head
+      # Pinned to the pull/256/head tip from 2026-06-02 ~10:49 that still uses
+      # the crypto_service_mbedcrypto target. A later force-push renamed it to
+      # crypto_service_tfpsacrypto, which needs a matching nrf_security change
+      # that has not landed yet. Restore pull/256/head once that lands.
+      revision: 3eb8b7e2bb52b1a5990c3c0fbc97713925c3abbd
     - name: psa-arch-tests
       repo-path: sdk-psa-arch-tests
       path: modules/tee/tf-m/psa-arch-tests
