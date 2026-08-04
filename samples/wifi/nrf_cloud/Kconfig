@@ -17,6 +17,13 @@ config CLOUD_CONNECTION_RETRY_TIMEOUT_SECONDS
 	  If connecting to nRF Cloud takes longer than this timeout, it will be
 	  reattempted.
 
+config WIFI_CONNECT_RETRY_TIMEOUT_SECONDS
+	int "Wi-Fi connection retry timeout (seconds)"
+	default 10
+	help
+	  If a Wi-Fi connection attempt fails, or an established connection is
+	  lost, wait this many seconds before requesting a (re)connection.
+
 config CLOUD_READY_TIMEOUT_SECONDS
 	int "Cloud readiness timeout (seconds)"
 	default 600

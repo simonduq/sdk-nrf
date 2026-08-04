@@ -5,8 +5,10 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/net/socket.h>
-#include <zephyr/net/conn_mgr_connectivity.h>
-#include <zephyr/net/conn_mgr_monitor.h>
+#include <zephyr/net/net_if.h>
+#include <zephyr/net/net_event.h>
+#include <zephyr/net/wifi_mgmt.h>
+#include <net/wifi_ready.h>
 #include <zephyr/logging/log.h>
 #include <stdio.h>
 #include <date_time.h>
@@ -30,8 +32,12 @@ LOG_MODULE_REGISTER(cloud_connection, CONFIG_WIFI_NRF_CLOUD_LOG_LEVEL);
 #define CLOUD_READY			BIT(2)
 #define CLOUD_DISCONNECTED		BIT(3)
 #define DATE_TIME_KNOWN			BIT(4)
-#define L4_EVENT_MASK		(NET_EVENT_L4_CONNECTED | NET_EVENT_L4_DISCONNECTED)
+#define WIFI_EVENT_MASK		(NET_EVENT_WIFI_CONNECT_RESULT | NET_EVENT_WIFI_DISCONNECT_RESULT)
+#define IPV4_EVENT_MASK		(NET_EVENT_IPV4_ADDR_ADD | NET_EVENT_IPV4_ADDR_DEL)
 static K_EVENT_DEFINE(cloud_events);
+
+/* The Wi-Fi interface this sample connects over. There is only ever one. */
+static struct net_if *wifi_iface;
 
 /* Atomic status flag tracking whether an initial association is in progress. */
 static atomic_t initial_association;
@@ -295,23 +301,83 @@ static bool connect_cloud(void)
 
 /* External event handlers */
 
-/* Handler for L4/connectivity events
- * This allows the cloud module to react to network gain and loss.
- * The conn_mgr subsystem is responsible for seeking / maintaining network connectivity and
- * firing these events.
+/* Work item that (re)issues a connect request to the Wi-Fi driver, using whatever
+ * credentials are stored. Rescheduled on failure/disconnection so that the sample keeps
+ * seeking connectivity, mirroring what the (now removed) Wi-Fi conn_mgr binding used to do.
  */
-static struct net_mgmt_event_callback l4_callback;
-static void l4_event_handler(struct net_mgmt_event_callback *cb,
-			     uint64_t event, struct net_if *iface)
+static void wifi_connect_work_fn(struct k_work *work);
+static K_WORK_DELAYABLE_DEFINE(wifi_connect_work, wifi_connect_work_fn);
+
+static void wifi_connect_work_fn(struct k_work *work)
 {
-	if (event == NET_EVENT_L4_CONNECTED) {
+	ARG_UNUSED(work);
+
+	if (net_mgmt(NET_REQUEST_WIFI_CONNECT_STORED, wifi_iface, NULL, 0)) {
+		LOG_ERR("Wi-Fi connect request failed, retrying in %d seconds",
+			CONFIG_WIFI_CONNECT_RETRY_TIMEOUT_SECONDS);
+		k_work_reschedule(&wifi_connect_work,
+				  K_SECONDS(CONFIG_WIFI_CONNECT_RETRY_TIMEOUT_SECONDS));
+	}
+}
+
+/* Called by the Wi-Fi ready library once the driver/supplicant is ready to accept connection
+ * requests. This sample only ever has one Wi-Fi interface, so there is nothing to key off of.
+ */
+static void wifi_ready_cb(bool ready)
+{
+	if (ready) {
+		LOG_INF("Wi-Fi is ready, connecting...");
+		k_work_reschedule(&wifi_connect_work, K_NO_WAIT);
+	} else {
+		LOG_INF("Wi-Fi is not ready");
+		k_work_cancel_delayable(&wifi_connect_work);
+	}
+}
+
+/* Handler for Wi-Fi connection lifecycle events. This allows the sample to keep retrying a
+ * connection any time it fails or is lost, since there is no conn_mgr subsystem doing this for
+ * us anymore.
+ */
+static struct net_mgmt_event_callback wifi_callback;
+static void wifi_event_handler(struct net_mgmt_event_callback *cb,
+				uint64_t event, struct net_if *iface)
+{
+	const struct wifi_status *status = (const struct wifi_status *)cb->info;
+
+	if (event == NET_EVENT_WIFI_CONNECT_RESULT) {
+		if (status->status) {
+			LOG_ERR("Wi-Fi connection failed (%d), retrying in %d seconds",
+				status->status, CONFIG_WIFI_CONNECT_RETRY_TIMEOUT_SECONDS);
+			k_work_reschedule(&wifi_connect_work,
+					  K_SECONDS(CONFIG_WIFI_CONNECT_RETRY_TIMEOUT_SECONDS));
+		} else {
+			LOG_INF("Wi-Fi connected, waiting for IP address");
+		}
+	} else if (event == NET_EVENT_WIFI_DISCONNECT_RESULT) {
+		LOG_INF("Wi-Fi disconnected, reconnecting in %d seconds",
+			CONFIG_WIFI_CONNECT_RETRY_TIMEOUT_SECONDS);
+		k_work_reschedule(&wifi_connect_work,
+				  K_SECONDS(CONFIG_WIFI_CONNECT_RETRY_TIMEOUT_SECONDS));
+	}
+}
+
+/* Handler for IPv4 address events.
+ * This allows the cloud module to react to network gain and loss: an IP address is only
+ * assigned once Wi-Fi is associated and DHCP has completed, and is removed as soon as either
+ * is lost.
+ */
+static struct net_mgmt_event_callback ipv4_callback;
+static void ipv4_event_handler(struct net_mgmt_event_callback *cb,
+			       uint64_t event, struct net_if *iface)
+{
+	if (event == NET_EVENT_IPV4_ADDR_ADD) {
 		LOG_INF("Network connectivity gained!");
 
 		/* Set the network ready flag */
 		k_event_post(&cloud_events, NETWORK_READY);
 
 		date_time_update_async(NULL);
-	} else if (event == NET_EVENT_L4_DISCONNECTED) {
+	} else if (event == NET_EVENT_IPV4_ADDR_DEL) {
 		LOG_INF("Network connectivity lost!");
 
 		/* Clear the network ready flag */
@@ -573,7 +639,7 @@ static void check_credentials(void)
 		return;
 	}
 	/* Save power since credentials will not work. */
-	conn_mgr_all_if_down(true);
+	(void)net_if_down(wifi_iface);
 	k_sleep(K_FOREVER);
 }
 
@@ -581,15 +647,21 @@ void cloud_connection_thread_fn(void)
 {
 	long_led_pattern(LED_WAITING);
 
-	/* Setup handler for Zephyr NET Connection Manager events. */
-	net_mgmt_init_event_callback(&l4_callback, l4_event_handler, L4_EVENT_MASK);
-	net_mgmt_add_event_callback(&l4_callback);
+	wifi_iface = net_if_get_first_wifi();
 
-	/* Enable the connection manager for all interfaces and allow them to connect. */
-	conn_mgr_all_if_up(true);
+	/* Setup handlers for Wi-Fi connection lifecycle and IPv4 address events. */
+	net_mgmt_init_event_callback(&wifi_callback, wifi_event_handler, WIFI_EVENT_MASK);
+	net_mgmt_add_event_callback(&wifi_callback);
+
+	net_mgmt_init_event_callback(&ipv4_callback, ipv4_event_handler, IPV4_EVENT_MASK);
+	net_mgmt_add_event_callback(&ipv4_callback);
 
 	LOG_INF("Enabling connectivity...");
-	conn_mgr_all_if_connect(true);
+	net_if_up(wifi_iface);
+
+	/* Connect as soon as the Wi-Fi driver/supplicant is ready to accept requests. */
+	register_wifi_ready_callback((wifi_ready_callback_t){ .wifi_ready_cb = wifi_ready_cb },
+				      wifi_iface);
 
 	LOG_INF("Setting up nRF Cloud library...");
 	if (setup_cloud()) {
