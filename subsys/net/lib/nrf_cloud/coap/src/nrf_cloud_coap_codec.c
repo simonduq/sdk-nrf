@@ -164,6 +164,11 @@ int coap_codec_pvt_encode(const char *app_id, const struct nrf_cloud_gnss_pvt *p
 
 static void copy_cell(struct cell *dst, struct lte_lc_cell const *const src)
 {
+	LOG_INF("Cell: mcc:%d, mnc:%d, eci:%u, tac:%u, earfcn:%u, "
+		"timing_advance:%d, rsrp:%d, rsrq:%d",
+		src->mcc, src->mnc, src->id, src->tac, src->earfcn,
+		src->timing_advance, src->rsrp, src->rsrq);
+
 	dst->cell_mcc = src->mcc;
 	dst->cell_mnc = src->mnc;
 	dst->cell_eci = src->id;
@@ -186,6 +191,10 @@ static void copy_cell(struct cell *dst, struct lte_lc_cell const *const src)
 static void copy_ncells(struct ncell *dst, int num, struct lte_lc_ncell *src)
 {
 	for (int i = 0; i < num; i++) {
+		LOG_INF("Neighbor cell #%d: earfcn:%u, pci:%u, rsrp:%d, rsrq:%d, time_diff:%d",
+			i, src->earfcn, src->phys_cell_id, src->rsrp, src->rsrq,
+			src->time_diff);
+
 		dst->ncell_earfcn = src->earfcn;
 		dst->ncell_pci = src->phys_cell_id;
 		if (src->rsrp != NRF_CLOUD_LOCATION_CELL_OMIT_RSRP) {
@@ -268,7 +277,22 @@ static void copy_wifi_info(struct wifi_ob *wifi_encode,
 
 	wifi_encode->wifi_ob_accessPoints_ap_m_count = num_aps;
 
+	LOG_INF("Encoding %zu of %u scanned Wi-Fi AP(s) for ground fix request",
+		num_aps, wifi_info->cnt);
+
 	for (int i = 0; i < num_aps; i++, src++, dst++) {
+		LOG_INF("AP #%d: BSSID:%02x:%02x:%02x:%02x:%02x:%02x, ssid:%.*s, "
+			"rssi:%d, channel:%u",
+			i,
+			src->mac_length > 0 ? src->mac[0] : 0,
+			src->mac_length > 1 ? src->mac[1] : 0,
+			src->mac_length > 2 ? src->mac[2] : 0,
+			src->mac_length > 3 ? src->mac[3] : 0,
+			src->mac_length > 4 ? src->mac[4] : 0,
+			src->mac_length > 5 ? src->mac[5] : 0,
+			src->ssid_length, src->ssid,
+			src->rssi, src->channel);
+
 		dst->ap_macAddress.value = src->mac;
 		dst->ap_macAddress.len = src->mac_length;
 		dst->ap_age_present = false;
@@ -304,6 +328,11 @@ int coap_codec_ground_fix_req_encode(struct lte_lc_cells_info const *const cell_
 	struct ground_fix_req input;
 	size_t out_len;
 
+	LOG_INF("Building ground fix request: cell_info:%s, wifi_info:%s (%u APs)",
+		cell_info ? "present" : "absent",
+		wifi_info ? "present" : "absent",
+		wifi_info ? wifi_info->cnt : 0);
+
 	memset(&input, 0, sizeof(struct ground_fix_req));
 	input.ground_fix_req_lte_present = (cell_info != NULL);
 	if (cell_info) {
@@ -320,6 +349,8 @@ int coap_codec_ground_fix_req_encode(struct lte_lc_cells_info const *const cell_
 		*len = 0;
 	} else {
 		*len = out_len;
+		LOG_INF("Encoded ground fix request: %zu bytes", out_len);
+		LOG_HEXDUMP_INF(buf, out_len, "Ground fix request CBOR payload");
 	}
 	return err;
 }
@@ -352,6 +383,9 @@ int coap_codec_ground_fix_resp_decode(struct nrf_cloud_location_result *result, 
 	struct ground_fix_resp res;
 	size_t out_len;
 
+	LOG_INF("Decoding ground fix response: %zu bytes", len);
+	LOG_HEXDUMP_INF(buf, len, "Ground fix response CBOR payload");
+
 	err = cbor_decode_ground_fix_resp(buf, len, &res, &out_len);
 	if (!err && (out_len != len)) {
 		LOG_WRN("Different response length: expected:%zd, decoded:%zd", len, out_len);
@@ -383,6 +417,10 @@ int coap_codec_ground_fix_resp_decode(struct nrf_cloud_location_result *result, 
 	} else {
 		result->unc = (uint32_t)lround(res.ground_fix_resp_uncertainty_float);
 	}
+
+	LOG_INF("Ground fix response decoded: type:%d, lat:%.6f, lon:%.6f, unc:%u",
+		result->type, result->lat, result->lon, result->unc);
+
 	return err;
 }
 

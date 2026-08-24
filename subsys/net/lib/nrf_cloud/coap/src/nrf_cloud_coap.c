@@ -530,6 +530,9 @@ static int loc_err;
 
 static void get_location_callback(const struct coap_client_response_data *data, void *user)
 {
+	LOG_INF("Location response: result_code:0x%x, payload_len:%zu",
+		data->result_code, data->payload_len);
+
 	if (data->result_code != COAP_RESPONSE_CODE_CONTENT) {
 		loc_err = data->result_code;
 		if (data->payload_len) {
@@ -567,6 +570,8 @@ int nrf_cloud_coap_location_get(struct nrf_cloud_coap_location_request const *co
 	char url[url_size + 1];
 
 	(void)nrf_cloud_ground_fix_url_encode(url, url_size, COAP_GND_FIX_RSC, conf);
+
+	LOG_INF("Requesting location; URL: %s", url);
 
 	/* Take the semaphore before modifying the static buffer */
 	(void)k_sem_take(&coap_transfer_sem, K_FOREVER);
