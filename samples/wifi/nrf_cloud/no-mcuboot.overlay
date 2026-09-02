@@ -1,0 +1,46 @@
+/*
+ * Copyright (c) 2026 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+/*
+ * nrf7120dk/nrf7120/cpuapp's default partition layout (see
+ * nordic/nrf7120_cpuapp_partition.dtsi) reserves the first 64 KB of MRAM for
+ * MCUboot (boot_partition) and links the application to run from
+ * slot0_partition at offset 0x10000. That only works with MCUboot actually
+ * present at address 0 to jump into slot0 -- with
+ * -DSB_CONFIG_BOOTLOADER_NONE=y no bootloader is built, so nothing would ever
+ * reach the application at 0x10000 and the device would not boot.
+ *
+ * Merge boot_partition into slot0_partition so the single, non-upgradable
+ * application image is linked to run directly from address 0x0 instead.
+ * slot1_partition/storage_partition are untouched (slot0 still ends exactly
+ * where slot1 begins, at 0x178000).
+ *
+ * Note: nrf7120dk_nrf7120_cpuapp_defconfig unconditionally sets
+ * CONFIG_FLASH_LOAD_OFFSET=0xA000, a fixed SoC-level boot offset applied on
+ * top of whatever address the code-partition starts at (regardless of
+ * MCUboot). With this overlay the application therefore actually starts at
+ * 0xA000 (0x0 + 0xA000), instead of 0x1A000 (0x10000 + 0xA000) as it would
+ * without the overlay -- which lands inside the otherwise-empty
+ * boot_partition gap and would never run without a bootloader there.
+ */
+/delete-node/ &boot_partition;
+/delete-node/ &slot0_partition;
+
+&cpuapp_mram {
+	partitions {
+		slot0_partition: partition@0 {
+			compatible = "zephyr,mapped-partition";
+			label = "image-0";
+			reg = <0x0 DT_SIZE_K(1504)>;
+		};
+	};
+};
+
+/ {
+	chosen {
+		zephyr,code-partition = &slot0_partition;
+	};
+};

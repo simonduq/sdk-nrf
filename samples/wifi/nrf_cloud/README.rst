@@ -240,6 +240,15 @@ This sample intentionally uses only Memfault's FOTA mechanism, and not nRF Cloud
 
    ``-DEXTRA_CONF_FILE="coap.conf;coap-fota.conf"``
 
+   If you don't need FOTA, you can build the ``nrf7120dk/nrf7120/cpuapp`` target without MCUboot: add ``coap.conf`` (without ``coap-fota.conf``) and override the default bootloader choice with ``-DSB_CONFIG_BOOTLOADER_NONE=y``.
+   This produces a single, non-upgradable application image, matching the ``nrf7120dk/nrf7120/cpuapp/ns`` target's setup (see :file:`sample.yaml`'s ``sample.wifi.conn.coap.sonly.nofota`` test item).
+
+   .. important::
+      When building ``nrf7120dk/nrf7120/cpuapp`` without MCUboot, you must also apply :file:`no-mcuboot.overlay` (``-DDTC_OVERLAY_FILE="no-mcuboot.overlay"``).
+      The board's default devicetree layout reserves the first 64 KB of MRAM for a ``boot_partition`` and links the application to run from ``slot0_partition`` starting at offset ``0x10000``, expecting MCUboot to occupy ``boot_partition`` and jump into it.
+      Without MCUboot present, nothing would ever run at that address.
+      The overlay merges ``boot_partition`` into ``slot0_partition`` (now starting at ``0x0``) so the application is linked to run from the start of MRAM, where the SoC's fixed boot offset (:kconfig:option:`CONFIG_FLASH_LOAD_OFFSET`, ``0xA000`` for this board) actually expects code to begin.
+
 .. _wifi_nrf_cloud_test_counter:
 
 Test counter
@@ -430,6 +439,8 @@ You must select either MQTT or CoAP by adding one of the following parameters to
 On board targets that can enable :kconfig:option:`CONFIG_SAMPLE_MEMFAULT_FOTA` (currently only ``nrf7120dk/nrf7120/cpuapp``, see :ref:`wifi_nrf_cloud_fota`), also merge in the :file:`coap-fota.conf` file:
 
 ``-DEXTRA_CONF_FILE="coap.conf;coap-fota.conf"``
+
+To build ``nrf7120dk/nrf7120/cpuapp`` without FOTA and without MCUboot, omit :file:`coap-fota.conf` and add ``-DSB_CONFIG_BOOTLOADER_NONE=y -DDTC_OVERLAY_FILE="no-mcuboot.overlay"`` (see :ref:`wifi_nrf_cloud_fota`).
 
 .. _wifi_nrf_cloud_onboarding:
 

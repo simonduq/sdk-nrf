@@ -29,6 +29,28 @@ tests:
       - ci_build
       - sysbuild
       - ci_samples_wifi
+  # Secure-only (no /ns), no FOTA (coap.conf without coap-fota.conf) and no
+  # MCUboot (SB_CONFIG_BOOTLOADER_NONE overrides Kconfig.sysbuild's default
+  # of MCUboot for this board target). no-mcuboot.overlay is required: the
+  # board's default partition layout reserves the first 64 KB of MRAM for
+  # MCUboot and links the app to run from slot0_partition at 0x10000, which
+  # only works if MCUboot is actually present at 0x0 to jump there. See the
+  # overlay file for details.
+  sample.wifi.conn.coap.sonly.nofota:
+    sysbuild: true
+    build_only: true
+    integration_platforms:
+      - nrf7120dk/nrf7120/cpuapp
+    platform_allow:
+      - nrf7120dk/nrf7120/cpuapp
+    extra_args:
+      - EXTRA_CONF_FILE="coap.conf"
+      - SB_CONFIG_BOOTLOADER_NONE=y
+      - DTC_OVERLAY_FILE="no-mcuboot.overlay"
+    tags:
+      - ci_build
+      - sysbuild
+      - ci_samples_wifi
   sample.wifi.conn.coap:
     sysbuild: true
     build_only: true
