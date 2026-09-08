@@ -19,6 +19,7 @@
 #include <radio_test/fmac_structs.h>
 #include <common/status.h>
 #include <vtf_monitoring/vtf_monitoring.h>
+#include "common/fmac_api_common.h"
 
 #define RX_CAP_BYTES_PER_SAMPLE 3
 #define SAMPLES_PER_LINE 16
@@ -2597,6 +2598,9 @@ static int nrf_wifi_radio_test_shell_init(void)
 		       NRF_WIFI_RADIO_TEST_INIT_TIMEOUT_MS);
 		return -ENOEXEC;
 	}
+
+	printf("FICR->PROTEST.CP.TIMESTAMP1 (0x00FFC3CC) = 0x%08x\n",
+	       *(volatile uint32_t *)0x00FFC3CCUL);
 
 	status = nrf_wifi_radio_test_conf_init(&ctx->conf_params);
 
