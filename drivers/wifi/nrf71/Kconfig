@@ -5,6 +5,9 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+# Workaround for not being able to have commas in macro arguments
+DT_CHOSEN_VTF_REGION := nordic,vtf-region
+
 menuconfig WIFI_NRF71
 	bool "nRF71 driver"
 	select NET_L2_WIFI_MGMT if NETWORKING
@@ -15,7 +18,7 @@ menuconfig WIFI_NRF71
 	select MBOX
 	select SPSC_PBUF
 	select SOC_NRF71_WIFI_BOOT
-	select VTF_MONITORING
+	select VTF_MONITORING if $(dt_chosen_enabled,$(DT_CHOSEN_VTF_REGION))
 	default y
 	depends on DT_HAS_NORDIC_NRF7120_WIFI_ENABLED
 	help
