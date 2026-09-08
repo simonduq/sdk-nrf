@@ -3371,6 +3371,9 @@ static int nrf_wifi_radio_test_shell_init(void)
 		return -ENOEXEC;
 	}
 
+	printf("FICR->PROTEST.CP.TIMESTAMP1 (0x00FFC3CC) = 0x%08x\n",
+	       *(volatile uint32_t *)0x00FFC3CCUL);
+
 	status = nrf_wifi_radio_test_conf_init(&ctx->conf_params);
 
 	if (status != NRF_WIFI_STATUS_SUCCESS) {
