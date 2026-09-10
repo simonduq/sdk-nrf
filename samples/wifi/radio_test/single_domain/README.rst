@@ -16,5 +16,6 @@
 
    sample_description.rst
    testing.rst
+   power_measurement.rst
    radio_test_subcommands.rst
    ficr.rst
