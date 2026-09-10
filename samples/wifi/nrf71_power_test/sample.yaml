@@ -1,0 +1,15 @@
+sample:
+  description: Wi-Fi BLE radio test sample single domain, dedicated to the nRF7120
+  name: Wi-Fi BLE radio test Single Domain (nRF7120)
+tests:
+  sample.nrf7120.wifi_ble_radio_test_sd:
+    sysbuild: true
+    build_only: true
+    integration_platforms:
+      - nrf7120dk/nrf7120/cpuapp
+    platform_allow:
+      - nrf7120dk/nrf7120/cpuapp
+    tags:
+      - ci_build
+      - sysbuild
+      - ci_samples_nrf71_wifi
