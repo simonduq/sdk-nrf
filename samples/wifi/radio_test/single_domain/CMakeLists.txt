@@ -26,6 +26,7 @@ target_sources(app PRIVATE
   ${common_rt_dir}/src/nrf_wifi_radio_test_shell.c
   src/measurement_modes.c
   src/system_off.c
+  src/buttons.c
 )
 
 if(NOT CONFIG_NRF71_RADIO_TEST)
