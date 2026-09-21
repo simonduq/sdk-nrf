@@ -32,6 +32,25 @@ the application core access port is closed after every reset:
 
 Connect to the shell UART, for example with ``picocom -b 115200 /dev/ttyACM0``.
 
+By default, the mode is selected at runtime, from the shell or the front-panel
+buttons, and nothing starts automatically at boot. To instead have one mode
+start automatically on every boot (for example when a shell connection or
+physical button access is not convenient, as in automated current
+measurement), set ``CONFIG_NRF71_POWER_TEST_DEFAULT_MODE_SYSTEMOFF``,
+``CONFIG_NRF71_POWER_TEST_DEFAULT_MODE_RX`` or
+``CONFIG_NRF71_POWER_TEST_DEFAULT_MODE_TX`` at build time, for example:
+
+.. code-block:: console
+
+   west build -p -b nrf7120dk/nrf7120/cpuapp \
+      -d build_unified_power \
+      nrf/samples/wifi/nrf71_power_test \
+      -- -DCONFIG_NRF71_POWER_TEST_DEFAULT_MODE_RX=y
+
+This starts the selected mode right after the boot banner, equivalent to
+pressing sw0, sw1 or sw2 respectively. The shell and the buttons remain
+available to switch to a different mode afterwards.
+
 At boot, the firmware prints the value of ``FICR->PROTEST.CP.TIMESTAMP1``,
 which identifies the chip trim revision, and a reminder of the commands that
 select each mode.
