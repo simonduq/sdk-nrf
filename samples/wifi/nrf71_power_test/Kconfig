@@ -7,3 +7,25 @@
 mainmenu "Nordic Wi-Fi Bluetooth LE Radio test sample"
 
 rsource "../../../samples/peripheral/radio_test/Kconfig"
+
+choice NRF71_POWER_TEST_DEFAULT_MODE
+	prompt "Default boot mode"
+	default NRF71_POWER_TEST_DEFAULT_MODE_NONE
+	help
+	  Selects a measurement mode to start automatically on every boot,
+	  without waiting for a shell command or a front-panel button press.
+	  Equivalent to pressing sw0, sw1 or sw2 right after boot.
+
+config NRF71_POWER_TEST_DEFAULT_MODE_NONE
+	bool "None: wait for a shell command or a button press"
+
+config NRF71_POWER_TEST_DEFAULT_MODE_SYSTEMOFF
+	bool "System OFF (equivalent to sw0 / the \"off\" command)"
+
+config NRF71_POWER_TEST_DEFAULT_MODE_RX
+	bool "Wi-Fi Rx (equivalent to sw1 / the \"rx\" command)"
+
+config NRF71_POWER_TEST_DEFAULT_MODE_TX
+	bool "Wi-Fi Tx (equivalent to sw2 / the \"tx\" command)"
+
+endchoice

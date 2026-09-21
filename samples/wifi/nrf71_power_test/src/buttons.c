@@ -27,11 +27,18 @@
  * not available on this port. Buttons are therefore handled by polling the
  * raw pin state from a dedicated thread instead of via
  * gpio_add_callback()/ISR.
+ *
+ * This file also implements CONFIG_NRF71_POWER_TEST_DEFAULT_MODE_* (see the
+ * sample's Kconfig): a build-time choice that starts one of the three modes
+ * automatically at boot, equivalent to pressing sw0..sw2 right after boot,
+ * for setups where a shell connection or physical button access is not
+ * convenient (e.g. automated current measurement).
  */
 
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/init.h>
 #include <zephyr/kernel.h>
 #include <zephyr/shell/shell.h>
 #include <zephyr/shell/shell_uart.h>
@@ -83,33 +90,68 @@ static struct button buttons[] = {
 	},
 };
 
-static void button_action_run(struct button *button)
+static int action_run(enum button_action action)
 {
 	const struct shell *sh = shell_backend_uart_get_ptr();
+
+	switch (action) {
+	case BUTTON_ACTION_SYSTEM_OFF:
+		return shell_execute_cmd(sh, "systemoff");
+	case BUTTON_ACTION_RX:
+		return shell_execute_cmd(sh, "rx");
+	case BUTTON_ACTION_TX:
+		return shell_execute_cmd(sh, "tx");
+	default:
+		return -EINVAL;
+	}
+}
+
+static void button_action_run(struct button *button)
+{
 	int ret;
 
 	printk("%s %s\n", button->name,
 	       button->edge == BUTTON_EDGE_RELEASE ? "released" : "pressed");
 
-	switch (button->action) {
-	case BUTTON_ACTION_SYSTEM_OFF:
-		ret = shell_execute_cmd(sh, "systemoff");
-		break;
-	case BUTTON_ACTION_RX:
-		ret = shell_execute_cmd(sh, "rx");
-		break;
-	case BUTTON_ACTION_TX:
-		ret = shell_execute_cmd(sh, "tx");
-		break;
-	default:
-		ret = -EINVAL;
-		break;
-	}
-
+	ret = action_run(button->action);
 	if (ret != 0) {
 		printk("%s: command failed (%d)\n", button->name, ret);
 	}
 }
+
+/* CONFIG_NRF71_POWER_TEST_DEFAULT_MODE_* selects a mode to start
+ * automatically at boot, equivalent to pressing sw0..sw2 right after boot,
+ * without requiring a shell command or a button press. Runs after the
+ * measurement modes banner (SYS_INIT APPLICATION priority 99, see
+ * measurement_modes.c) so the banner is still printed first.
+ */
+#if defined(CONFIG_NRF71_POWER_TEST_DEFAULT_MODE_SYSTEMOFF) || \
+	defined(CONFIG_NRF71_POWER_TEST_DEFAULT_MODE_RX) || \
+	defined(CONFIG_NRF71_POWER_TEST_DEFAULT_MODE_TX)
+static int default_mode_run(void)
+{
+	int ret;
+
+#if defined(CONFIG_NRF71_POWER_TEST_DEFAULT_MODE_SYSTEMOFF)
+	printk("Default boot mode: System OFF\n");
+	ret = action_run(BUTTON_ACTION_SYSTEM_OFF);
+#elif defined(CONFIG_NRF71_POWER_TEST_DEFAULT_MODE_RX)
+	printk("Default boot mode: Wi-Fi Rx\n");
+	ret = action_run(BUTTON_ACTION_RX);
+#else
+	printk("Default boot mode: Wi-Fi Tx\n");
+	ret = action_run(BUTTON_ACTION_TX);
+#endif
+
+	if (ret != 0) {
+		printk("Default boot mode: command failed (%d)\n", ret);
+	}
+
+	return 0;
+}
+
+SYS_INIT(default_mode_run, APPLICATION, 100);
+#endif
 
 static void button_poll_thread(void *p1, void *p2, void *p3)
 {
