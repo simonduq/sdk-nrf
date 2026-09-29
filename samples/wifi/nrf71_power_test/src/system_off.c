@@ -45,6 +45,7 @@
 #include <zephyr/shell/shell.h>
 #include <zephyr/sys/poweroff.h>
 #include <zephyr/sys/reboot.h>
+#include <zephyr/sys/sys_io.h>
 #include <zephyr/toolchain.h>
 
 #if defined(CONFIG_NRF71_RADIO_TEST)
@@ -77,6 +78,10 @@ static void system_off_enter(bool stop_system_clock)
 		 */
 		sys_clock_disable();
 	}
+
+	/* Temporary low-power comparator trim override. */
+	sys_write32(0x7U, 0x50126448U);
+	__DSB();
 
 	sys_poweroff();
 
