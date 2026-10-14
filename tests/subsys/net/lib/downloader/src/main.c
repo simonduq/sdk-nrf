@@ -311,6 +311,13 @@ static struct zsock_addrinfo server_addrinfo6 = {
 	.ai_addrlen = sizeof(struct net_sockaddr),
 };
 
+/* Dual-stack result: IPv6 first, then IPv4 */
+static struct zsock_addrinfo server_addrinfo_dual = {
+	.ai_addr = &server_sockaddr6,
+	.ai_addrlen = sizeof(struct net_sockaddr),
+	.ai_next = &server_addrinfo,
+};
+
 int zsock_getaddrinfo_server_ok(const char *host, const char *service,
 				     const struct zsock_addrinfo *hints,
 				     struct zsock_addrinfo **res)
@@ -320,7 +327,7 @@ int zsock_getaddrinfo_server_ok(const char *host, const char *service,
 	if (hints->ai_family == NET_AF_INET) {
 		*res = &server_addrinfo;
 		return 0;
-	} else if (hints->ai_family == NET_AF_INET6) {
+	} else if (hints->ai_family == NET_AF_INET6 || hints->ai_family == NET_AF_UNSPEC) {
 		*res = &server_addrinfo6;
 		return 0;
 	}
@@ -338,7 +345,7 @@ int zsock_getaddrinfo_server2_ok(const char *host, const char *service,
 	if (hints->ai_family == NET_AF_INET) {
 		*res = &server_addrinfo;
 		return 0;
-	} else if (hints->ai_family == NET_AF_INET6) {
+	} else if (hints->ai_family == NET_AF_INET6 || hints->ai_family == NET_AF_UNSPEC) {
 		*res = &server_addrinfo6;
 		return 0;
 	}
@@ -347,6 +354,17 @@ int zsock_getaddrinfo_server2_ok(const char *host, const char *service,
 	return DNS_EAI_SYSTEM;
 }
 
+
+int zsock_getaddrinfo_server_dual_ok(const char *host, const char *service,
+				     const struct zsock_addrinfo *hints,
+				     struct zsock_addrinfo **res)
+{
+	TEST_ASSERT_EQUAL_STRING(HOSTNAME, host);
+	TEST_ASSERT_EQUAL(NET_AF_UNSPEC, hints->ai_family);
+	*res = &server_addrinfo_dual;
+
+	return 0;
+}
 
 int zsock_getaddrinfo_server_ipv6_fail_ipv4_ok(const char *host, const char *service,
 				     const struct zsock_addrinfo *hints,
@@ -359,7 +377,6 @@ int zsock_getaddrinfo_server_ipv6_fail_ipv4_ok(const char *host, const char *ser
 	}
 
 	TEST_ASSERT_EQUAL_STRING(HOSTNAME, host);
-	TEST_ASSERT_EQUAL(NET_AF_INET, hints->ai_family);
 	*res = &server_addrinfo;
 
 	return 0;
@@ -380,21 +397,7 @@ void zsock_freeaddrinfo_server_ipv4(struct zsock_addrinfo *addr)
 
 void zsock_freeaddrinfo_server_ipv6(struct zsock_addrinfo *addr)
 {
-	TEST_ASSERT_EQUAL_PTR(&server_addrinfo6, addr);
-}
-
-void zsock_freeaddrinfo_server_ipv6_then_ipv4(struct zsock_addrinfo *addr)
-{
-	switch (zsock_freeaddrinfo_fake.call_count) {
-	case 1:
-		TEST_ASSERT_EQUAL_PTR(&server_addrinfo6, addr);
-		break;
-	case 2:
-		TEST_ASSERT_EQUAL_PTR(&server_addrinfo, addr);
-	default:
-
-	}
-
+	TEST_ASSERT_TRUE(addr == &server_addrinfo6 || addr == &server_addrinfo_dual);
 }
 
 int z_impl_zsock_socket_http_ipv4_ok(int family, int type, int proto)
@@ -2354,8 +2357,8 @@ void test_downloader_get_coaps_setsockopt_fail_pdn(void)
 	err = downloader_init(&dl, &dl_cfg);
 	TEST_ASSERT_EQUAL(0, err);
 
-	zsock_getaddrinfo_fake.custom_fake = zsock_getaddrinfo_server_ok;
-	zsock_freeaddrinfo_fake.custom_fake = zsock_freeaddrinfo_server_ipv6_then_ipv4;
+	zsock_getaddrinfo_fake.custom_fake = zsock_getaddrinfo_server_dual_ok;
+	zsock_freeaddrinfo_fake.custom_fake = zsock_freeaddrinfo_server_ipv6;
 	z_impl_zsock_socket_fake.custom_fake = z_impl_zsock_socket_coaps_ipv6_then_ipv4_ok;
 	z_impl_zsock_connect_fake.custom_fake = z_impl_zsock_connect_ipv6_ok;
 	z_impl_zsock_setsockopt_fake.custom_fake = z_impl_zsock_setsockopt_coaps_fail_on_pdn;
@@ -2387,8 +2390,8 @@ void test_downloader_get_coaps_setsockopt_fail_sec_tag_list(void)
 	err = downloader_init(&dl, &dl_cfg);
 	TEST_ASSERT_EQUAL(0, err);
 
-	zsock_getaddrinfo_fake.custom_fake = zsock_getaddrinfo_server_ok;
-	zsock_freeaddrinfo_fake.custom_fake = zsock_freeaddrinfo_server_ipv6_then_ipv4;
+	zsock_getaddrinfo_fake.custom_fake = zsock_getaddrinfo_server_dual_ok;
+	zsock_freeaddrinfo_fake.custom_fake = zsock_freeaddrinfo_server_ipv6;
 	z_impl_zsock_socket_fake.custom_fake = z_impl_zsock_socket_coaps_ipv6_then_ipv4_ok;
 	z_impl_zsock_connect_fake.custom_fake = z_impl_zsock_connect_ipv6_then_ipv4_ok;
 	z_impl_zsock_setsockopt_fake.custom_fake =
@@ -2463,7 +2466,7 @@ void test_downloader_get_coaps_setsockopt_fail_rcvtimeo(void)
 	TEST_ASSERT_EQUAL(0, err);
 
 	zsock_getaddrinfo_fake.custom_fake = zsock_getaddrinfo_server_ok;
-	zsock_freeaddrinfo_fake.custom_fake = zsock_freeaddrinfo_server_ipv6_then_ipv4;
+	zsock_freeaddrinfo_fake.custom_fake = zsock_freeaddrinfo_server_ipv6;
 	z_impl_zsock_socket_fake.custom_fake = z_impl_zsock_socket_coaps_ipv6_ok;
 	z_impl_zsock_connect_fake.custom_fake = z_impl_zsock_connect_ipv6_ok;
 	z_impl_zsock_setsockopt_fake.custom_fake =
@@ -2496,8 +2499,8 @@ void test_downloader_get_coaps_setsockopt_fail_cid(void)
 	err = downloader_init(&dl, &dl_cfg);
 	TEST_ASSERT_EQUAL(0, err);
 
-	zsock_getaddrinfo_fake.custom_fake = zsock_getaddrinfo_server_ok;
-	zsock_freeaddrinfo_fake.custom_fake = zsock_freeaddrinfo_server_ipv6_then_ipv4;
+	zsock_getaddrinfo_fake.custom_fake = zsock_getaddrinfo_server_dual_ok;
+	zsock_freeaddrinfo_fake.custom_fake = zsock_freeaddrinfo_server_ipv6;
 	z_impl_zsock_socket_fake.custom_fake = z_impl_zsock_socket_coaps_ipv6_then_ipv4_ok;
 	z_impl_zsock_connect_fake.custom_fake = z_impl_zsock_connect_ipv6_ok;
 	z_impl_zsock_setsockopt_fake.custom_fake =
@@ -3232,8 +3235,8 @@ void test_downloader_get_ipv6_fails_to_connect_ipv4_success(void)
 	err = downloader_init(&dl, &dl_cfg);
 	TEST_ASSERT_EQUAL(0, err);
 
-	zsock_getaddrinfo_fake.custom_fake = zsock_getaddrinfo_server_ok;
-	zsock_freeaddrinfo_fake.custom_fake = zsock_freeaddrinfo_server_ipv6_then_ipv4;
+	zsock_getaddrinfo_fake.custom_fake = zsock_getaddrinfo_server_dual_ok;
+	zsock_freeaddrinfo_fake.custom_fake = zsock_freeaddrinfo_server_ipv6;
 	z_impl_zsock_socket_fake.custom_fake = z_impl_zsock_socket_http_ipv6_then_ipv4;
 	z_impl_zsock_connect_fake.custom_fake = z_impl_zsock_connect_ipv6_fails_ipv4_ok;
 	z_impl_zsock_setsockopt_fake.custom_fake = z_impl_zsock_setsockopt_http_ok;
