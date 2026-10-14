@@ -8,6 +8,7 @@
 #include <zephyr/net/socket.h>
 
 #include <net/mqtt_helper.h>
+#include <zephyr/net/conn_mgr_monitor.h>
 #include <zephyr/net/mqtt.h>
 #include <zephyr/net/net_if.h>
 #include <zephyr/logging/log.h>
@@ -479,7 +480,8 @@ static int broker_connect(struct net_sockaddr_storage *broker,
 	struct zsock_addrinfo hints = {
 		.ai_socktype = NET_SOCK_STREAM,
 #if defined(CONFIG_NET_IPV6) && defined(CONFIG_NET_IPV4)
-		.ai_family = NET_AF_UNSPEC,
+		/* Only query the ready family, if only one is */
+		.ai_family = conn_mgr_get_ready_addr_family(),
 #elif defined(CONFIG_NET_IPV6)
 		.ai_family = NET_AF_INET6,
 #else
