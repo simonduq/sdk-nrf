@@ -140,8 +140,6 @@ Sample output
          >        HTTP/1.1 200 OK
 
          Finished, closing socket.
-         Network connectivity lost
-         Disconnected from the network
 
    .. group-tab:: Cellular
 
@@ -173,8 +171,6 @@ Sample output
          +CEREG: 0
          +CGEV: ME DETACH
          +CSCON: 0
-         Network connectivity lost
-         Disconnected from the network
 
       Output for the default configuration, where the carrier does support IPv6:
 
@@ -204,8 +200,6 @@ Sample output
          +CEREG: 0
          +CGEV: ME DETACH
          +CSCON: 0
-         Network connectivity lost
-         Disconnected from the net
 
       Output where you override the default packet data network (PDN) configuration to IPv4 only, using the :file:`overlay-pdn-nrf91-ipv4.conf` configuration file:
 
@@ -234,8 +228,6 @@ Sample output
          +CEREG: 0
          +CGEV: ME DETACH
          +CSCON: 0
-         Network connectivity lost
-         Disconnected from the network
 
 Troubleshooting
 ===============
